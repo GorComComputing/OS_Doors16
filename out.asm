@@ -1,9 +1,98 @@
 ; БИБЛИОТЕКА ВЫВОДА
 
+; Вывод строки с переносом и общими координатами #####################################
+PROC			WriteLn
+				push	ds es
+				call	Write
+				mov		[Byte Ptr mainx],0
+				mov		al,[mainy]
+				inc		al
+				cmp		al,[windowHx]
+				jne		wln
+				dec		al
+				push	ax
+				mov		ch,[windowy]
+				mov		cl,[windowx]
+				dec		cl
+				mov		dh,[windowHx]
+				inc		dh
+				mov		dl,[windowWx]
+				inc		dl
+				inc		dl
+				mov		ax,0601h
+				mov		bh,[color]
+				int		10h
+				pop		ax
+wln:			mov		[mainy],al
+				mov		dh,[mainy]
+				mov		dl,[mainx]
+				add		dh,[windowy]
+				add		dl,[windowx]
+				xor		bx,bx
+				mov		ax,0200h
+				int		10h
+				pop		es ds				
+				ret
+ENDP			WriteLn
+
 ; Вывод строки с общими координатами #################################################
 PROC			Write
-
+				push	ds es
+				mov		ax,0B800h
+				mov		es,ax
+				call	GetCurrentVideoAddress
+				mov		dl,[mainx]
+				mov		dh,[mainy]
+write1:			mov		ah,[color]
+				mov		al,[ds:si]
+				or		al,al
+				je		writeend
+				mov		[es:di],ax
+				inc		di
+				inc		di
+				inc		si
+				inc		dl
+				cmp		dl,[windowWx]
+				je		wxcarry
+				jmp		write1
+writeend:		mov		[mainx],dl
+				mov		[mainy],dh
+				add		dh,[windowy]
+				add		dl,[windowx]
+				push	bx
+				xor		bx,bx
+				mov		ax,0200h
+				int		10h
+				pop		bx
+				pop		es ds
 				ret
+				; Перенос строки
+wxcarry:		xor		dl,dl
+				inc		dh
+				push	dx
+				call	WindowSetVideoAddress
+				pop		dx
+				cmp		dh,[windowHx]
+				jne		write1
+				dec		dh
+				push	dx
+				push	bx
+				mov		ch,[windowy]
+				mov		cl,[windowx]
+				dec		cl
+				mov		dh,[windowHx]
+				inc		dh
+				mov		dl,[windowWx]
+				inc		dl
+				inc		dl
+				mov		ax,0601h
+				mov		bh,[color]
+				int		10h
+				call	WindowSetVideoAddress
+				pop		bx
+				pop		dx
+				dec		bh
+				jmp		write1
 ENDP			Write
 
 ; Вывод строки ds:di ##################################################################				
@@ -49,13 +138,13 @@ PROC			Ramka
 				add		bx,cx
 				mov		di,bx
 				push 	di
-				mov		al,"+"
+				mov		al,0C9h	;"+"
 				stosw
-				mov		al,"-"
+				mov		al,0CDh	;"-"
 				xor		ch,ch
 				mov		cl,dl
 				rep		stosw
-				mov		al,"+"
+				mov		al,0BBh	;"+"
 				stosw
 				pop		di
 				mov		cl,dh
@@ -63,29 +152,39 @@ PROC			Ramka
 Ramka_1:		add		di,160
 				push	di
 				push	cx
-				mov		al,"|"
+				mov		al,0BAh	;"|"
 				stosw
 				mov		al," "
 				xor		ch,ch
 				mov		cl,dl
 				rep		stosw
-				mov		al,"|"
+				mov		al,0BAh	;"|"
 				stosw
 				pop		cx
 				pop		di
 				loop	Ramka_1
 				add		di,160
-				mov		al,"+"
+				mov		al,0C8h	;"+"
 				stosw
-				mov		al,"-"
+				mov		al,0CDh	;"-"
 				xor		ch,ch
 				mov		cl,dl
 				rep		stosw
-				mov		al,"+"
+				mov		al,0BCh	;"+"
 				stosw				
 RamkaEnd:		ret
 ENDP			Ramka
 
+
+; Получаем текущий адрес в видеопамяти #################################################
+PROC			GetCurrentVideoAddress
+				mov		dl,[mainx]
+				mov		dh,[mainy]
+ENDP			GetCurrentVideoAddress
+PROC			WindowSetVideoAddress
+				add		dl,[windowx]
+				add		dh,[windowy]		
+ENDP			WindowSetVideoAddress
 ; Установить адрес видеопамяти #########################################################
 PROC			SetVideoAddress
 				push	bx
@@ -100,20 +199,3 @@ PROC			SetVideoAddress
 				ret
 ENDP			SetVideoAddress
 
-; Очистка экрана #######################################################################
-PROC			doCLS
-				mov		ch,[windowy]
-				mov		cl,[windowx]
-				dec		cl
-				mov		dh,[windowHx]
-				inc		dh
-				mov		dl,[windowWx]
-				inc		dl
-				inc		dl
-				mov		ax,0600h
-				mov		bh,[color]
-				int		10h
-				mov		[Byte Ptr mainx],0
-				mov		[Byte Ptr mainy],0
-				ret
-ENDP			doCLS
