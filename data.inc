@@ -7,7 +7,7 @@ ctable			DB "EXIT",0,"..Exit from DOORS",0
 				DW doCLS
 				DB "SQLITE",0,"Data Base SQLite",0
 				DW doSQLite
-				DB "BASIC",0,"Interpretator BASIC",0
+				DB "BASIC",0,".Interpretator BASIC",0
 				DW doBasic
 				DB 0
 				
