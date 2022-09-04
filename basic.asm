@@ -2,7 +2,7 @@
 
 vars			EQU 7E00h	; Переменные (a-z)
 running			EQU 7E7Eh	; Указатель на строчку, которая сейчас выполняется
-line			EQU 7E80h	; Строчка программы, которую напечатал программист
+;line			EQU 7E80h	; Строчка программы, которую напечатал программист
 program			EQU 7F00h	; Указатель на буфер для исходника программы
 ;stack			EQU 0FF00h	; Адрес стека
 max_line		EQU 1000	; Максимальное количество строчек в программе
@@ -27,6 +27,14 @@ statements		DB 3,"new"
 				DW cls_handler
 				DB 4,"help"
 				DW help_handler
+				DB 4,"dump"
+				DW dump_handler
+				DB 4,"peek"
+				DW peek_handler
+				DB 4,"poke"
+				DW poke_handler
+				DB 4,"load"
+				DW load_handler
 				DB 0
 EXIT_CMD		DB "exit"
 
@@ -34,6 +42,7 @@ basic1			DB "BASIC v.1.0 (c) 2022 Gor.Com",0
 entr_bas		DB ">",0		; Приглашение для ввода ">"
 entr2_bas		DB "?",0		; Приглашение для ввода "?"
 error_message	DB "Error!",0
+address_line	DB ": ",0
 char			DB "@",0
 
 ; BASIC #############################################################################
@@ -366,6 +375,164 @@ PROC			help_handler
 ENDP			help_handler
 
 
+; Выводит дамп памяти
+PROC			dump_handler			
+				call 	atoi        ;Преобразует строку в HEX
+				push 	ax
+				inc 	si 			;next char
+				call	atoi
+				;call 	PRINT_WORD
+				mov		cx,ax
+				pop 	ax
+
+				;mov		cx,2
+loop_dump:							; цикл вывода дампа
+				;push	cx
+				call 	PRINT_LINE 	; выводим строку 16 байт на экран
+				;pop		cx
+				add ax, 10h ; прибавляем к адресу 17 байт для вывода следующей строки
+				loop	loop_dump
+				ret
+ENDP			dump_handler
+
+; Преобразует строку в HEX
+PROC			atoi
+				mov 	ax,0	;для результата
+				mov 	bx,0 	;для символа
+atoi_start:
+				mov 	bl,[si] ;получаем текущий символ
+				cmp 	bl,20h 	;конец строки
+				je 		end_atoi
+				cmp 	bl,0 	;конец строки
+				je 		end_atoi
+				
+				cmp		bl,30h	; если 
+				jnge	at1
+				cmp		bl,39h	; если 
+				jg		at1
+				sub 	bl,30h	; digit
+				jmp		next_mul			
+at1:			
+				cmp		bl,41h	; если 
+				jnge	at2
+				cmp		bl,46h	; если 
+				jg		at2
+				sub 	bl,37h	; ABCDEF
+				jmp		next_mul			
+at2:			
+				cmp		bl,61h	; если 
+				jnge	at3
+				cmp		bl,66h	; если 
+				jg		at3
+				sub 	bl,57h	; abcdef
+				jmp		next_mul
+at3:				
+				call	ErrorMsg
+				ret
+next_mul:	
+				mov		dx,10h
+				mul		dx
+								
+				add 	ax,bx 	;and add the new digit
+				inc 	si 		;next char
+				jmp 	atoi_start
+end_atoi:			
+				ret
+ENDP			atoi
+
+; вывод на экран строки из 16-ти байт
+; ax — адрес выводимого 16-ти байтного дампа
+PROC			PRINT_LINE
+				push 	ax
+				push 	cx
+				push 	si
+				push	ax
+				call 	PRINT_WORD			; контрольноый вывод наашего адреса на экран
+				lea		si,[address_line]	; Выводим строку ": "
+				call	Write
+				pop		ax
+				mov 	si,ax
+				push	ax
+				mov 	cx, 10h ; регистр cx — счётчик цикла, загружаем число 16
+loop1:
+				lodsb
+				call 	PRINT_BYTE
+				mov 	al, 20h ; символ пробела для разделения байтов на экране
+				call 	to_show ; выводим пробел на экран
+				loop 	loop1 	; повторяем цикл 16 раз, в команде loop регистр cx = cx — 1
+				
+				mov 	al, 0B3h ; символ пробела для разделения байтов на экране
+				call 	to_show ; выводим пробел на экран
+				
+				pop		ax
+				mov 	si,ax
+				mov 	cx, 10h ; регистр cx — счётчик цикла, загружаем число 16
+loop2:
+				lodsb
+				cmp		al,0
+				jz		print_point
+				call 	to_show
+				jmp		jmp_loop
+print_point:
+				mov		al,'.'
+				call 	to_show
+jmp_loop:				
+				loop 	loop2 	; повторяем цикл 16 раз, в команде loop регистр cx = cx — 1
+				
+				call	Enter_line		; перевод строки
+				
+				pop 	si
+				pop 	cx
+				pop 	ax
+				ret
+ENDP			PRINT_LINE
+
+; вывод слова на экран
+; ax — выводимое слово
+PROC			PRINT_WORD
+				push	ax
+				mov 	al, ah
+				call 	PRINT_BYTE	; выводим старший байт
+				pop 	ax
+				call 	PRINT_BYTE 	; выводим младший байт
+				ret
+ENDP			PRINT_WORD
+
+; вывод байта на экран
+; al — выводимый байт
+PROC			PRINT_BYTE
+				push 	ax
+				mov 	ah, al
+				shr		al, 04h
+				call 	PRINT_DIGIT
+				mov 	al, ah
+				and		al, 0Fh
+				call 	PRINT_DIGIT
+				pop 	ax
+				ret
+ENDP			PRINT_BYTE
+
+; перевод 4-ёх бит в 16-тиричный символ и вывод на экран
+; al — выводимый байт
+PROC			PRINT_DIGIT
+				push	ax
+				pushf
+				cmp 	al, 0Ah
+				jae 	m1 ; если al больше или равно 10, то переход
+				add 	al, 30h ; складываем с кодом символа «0» (48дес)
+				jmp 	m2
+m1:
+				add 	al, 37h ; складываем с кодом символа «7» (55дес). Если al = 10, то 55 + 10 = 65 — код выводимого символа «A»
+m2:
+				xor 	ah, ah ; ah = 0, равносильно 1-му выводимому символу
+				call 	to_show
+				popf
+				pop 	ax
+				ret
+ENDP			PRINT_DIGIT
+
+
+
 ; Вычисление выражения
 PROC			process_expr
 				call	expr2_left
@@ -449,3 +616,62 @@ yes_var:
 to_ret2:				
 				ret
 ENDP			process_expr
+
+
+; Обработчик оператора PEEK (читать байт из памяти)
+PROC			peek_handler
+				lodsb
+				cmp		al,0			; Если PEEK без аргумента,
+				je		serv_peek		; то выводим служебный адрес
+				
+				call 	atoi        ;Преобразует строку в HEX
+				mov 	si,ax
+				lodsb
+				call 	PRINT_BYTE
+				call	Enter_line
+				ret
+serv_peek:		
+				lea		di,[color]
+				mov		ax,di
+				call	PRINT_WORD
+				call	Enter_line
+				
+				lea		di,[entr]
+				mov		ax,di
+				call	PRINT_WORD
+				call	Enter_line
+				
+				lea		di,[doHelp]
+				mov		ax,di
+				call	PRINT_WORD
+				call	Enter_line
+				
+				lea		di,[doSQLite]
+				mov		ax,di
+				call	PRINT_WORD
+				call	Enter_line
+				
+				ret
+ENDP			peek_handler
+
+
+; Обработчик оператора POKE (записать байт в память)
+PROC			poke_handler
+				call 	atoi        ;Преобразует строку в HEX
+				push 	ax
+				inc 	si 			;next char
+				call	atoi
+				mov		dl,al
+				pop 	ax
+				mov 	di,ax
+				mov		[di],dl
+				ret
+ENDP			poke_handler
+
+
+; Обработчик оператора LOAD (JMP -передача управления по адресу)
+PROC			load_handler
+				call 	atoi        ;Преобразует строку в HEX
+				jmp		ax
+				ret
+ENDP			load_handler
