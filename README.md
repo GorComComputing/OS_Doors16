@@ -1,7 +1,7 @@
 # Операционная система Doors 16-бит
 
-![Screenshot1.jpg](Screenshot1.jpg)  
-![Screenshot2.jpg](Screenshot2.jpg)
+![Screenshot2.jpg](Screenshot2.jpg)  
+![Screenshot1.jpg](Screenshot1.jpg)
 
 Работает в 16-битном реальном режиме процессора x86.  
 Видеорежим: Текстовый (80x25).
